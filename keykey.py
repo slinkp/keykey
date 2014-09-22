@@ -138,7 +138,6 @@ def get_all_window_borders(desktop_id=None, include_desktop=True,
     else:
         windows = _windowlist
 
-    # windows = [w for w in windows if w['desktop'] == desktop_id]
     x_borders = set()
     y_borders = set()
     top, right, bottom, left = get_desktop_borders(desktop_id)
@@ -173,10 +172,12 @@ def get_all_window_borders(desktop_id=None, include_desktop=True,
 def move_to_next_window_edge(window_id, direction):
     windows = get_window_list()
 
-    for win in windows:
+    for i, win in enumerate(windows):
         if window_id in (win['id'], win['hex_id']):
             print "Active window: %sx%s+%s+%s" % (win['width'], win['height'],
                                                   win[LEFT], win[TOP])
+            # Don't include it in get_all_window_borders()
+            windows.pop(i)
             break
     else:
         raise RuntimeError("Active window not found")
