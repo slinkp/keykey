@@ -188,7 +188,7 @@ class WindowMover(object):
             raise RuntimeError("Active window not found")
 
         desktop_id = self.get_active_desktop_id()
-        desktop_borders = WMCtrl.get_desktop_borders(desktop_id)
+        desktop_borders = self.get_desktop_borders(desktop_id)
         x_borders, y_borders = get_all_window_borders(
             desktop_borders=desktop_borders,
             include_desktop=True, include_center=True,
@@ -255,10 +255,13 @@ class WindowMover(object):
             move_window=None,
             get_window_ids=None,
             get_active_desktop_id=None,
+            get_desktop_borders=None,
             ):
         self.move_window = move_window
         self.get_window_ids = get_window_ids
         self.get_active_desktop_id = get_active_desktop_id
+        self.get_desktop_borders = get_desktop_borders
+
 # TODO another command to maximize to next edge?
 
 # TODO another command to emulate 'focus right' et al. from slate
@@ -272,5 +275,6 @@ if __name__ == '__main__':
         move_window=WMCtrl.move_window_to,
         get_window_ids=WMIFace.get_window_ids,
         get_active_desktop_id=WMCtrl.get_active_desktop_id,
+        get_desktop_borders=WMCtrl.get_desktop_borders,
     )
     mover.move_to_next_window_edge(win_id, direction)
