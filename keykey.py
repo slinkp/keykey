@@ -9,6 +9,7 @@ http://unix.stackexchange.com/a/156349/84607
 which can be  simplified (easier to parse in python than bash+sed)
 """
 
+import collections
 import subprocess
 import re
 
@@ -32,41 +33,46 @@ class WMIFace(object):
         return window_ids
 
     @classmethod
-    def _get_window_dimensions(cls, window_id):
+    def get_window_dimensions(cls, window_id):
         """
-        Given a window id, return width, height, x (top), y (left)
+        Given a window id, return a WindowGeometry
         """
         out = subprocess.check_output(['wmiface', 'frameGeometry', window_id])
         width, height, x, y = map(int, cls._geom_re.match(out).groups())
-        return width, height, x, y
+        geom = WindowGeometry(
+            id=window_id,
+            width=width,
+            height=height,
+            x=x,
+            y=y,
+            left=x,
+            top=y,
+            right=x + width,
+            bottom=y + height,
+            )
+        return geom
 
     @staticmethod
     def get_active_window_id():
         out = subprocess.check_output(['wmiface', 'activeWindow'])
         return out.strip()
 
-    @classmethod
-    def get_window_geometry(cls, w_id):
-        width, height, x, y = cls._get_window_dimensions(w_id)
-        w = {'id': w_id}
-        w['width'] = width
-        w['height'] = height
-        w[LEFT] = w['x'] = x
-        w[TOP] = w['y'] = y
-        w[RIGHT] = w['x'] + w['width']
-        w[BOTTOM] = w['y'] + w['height']
-        return w
+
+WindowGeometry = collections.namedtuple(
+    'WindowGeometry',
+    ['id', 'width', 'height', 'x', 'y', LEFT, TOP, RIGHT, BOTTOM]
+)
 
 
 def get_window_geometries(window_ids):
     """
-    Get geometries of all the given window ids.
+    Get list of WindowGeometry for all the given window ids.
     """
     # Convenience borders.
     windows = []
     for w_id in window_ids:
-        w = WMIFace.get_window_geometry(w_id)
-        windows.append(w)
+        geom = WMIFace.get_window_dimensions(w_id)
+        windows.append(geom)
     return windows
 
 
@@ -144,10 +150,10 @@ def get_all_window_borders(desktop_borders, include_desktop=True,
             y_borders.add(y)
 
     for w in windows:
-        maybe_add_x(w[LEFT])
-        maybe_add_x(w[RIGHT])
-        maybe_add_y(w[TOP])
-        maybe_add_y(w[BOTTOM])
+        maybe_add_x(w.left)
+        maybe_add_x(w.right)
+        maybe_add_y(w.top)
+        maybe_add_y(w.bottom)
 
     if include_desktop:
         x_borders.add(left)
@@ -170,9 +176,9 @@ def move_to_next_window_edge(window_id, direction):
     windows = get_window_geometries(all_ids)
 
     for i, win in enumerate(windows):
-        if window_id == win['id']:
-            print "Active window: %sx%s+%s+%s" % (win['width'], win['height'],
-                                                  win[LEFT], win[TOP])
+        if window_id == win.id:
+            print "Active window: %sx%s+%s+%s" % (win.width, win.height,
+                                                  win.left, win.top)
             # Don't include it in get_all_window_borders()
             windows.pop(i)
             break
@@ -195,13 +201,13 @@ def move_to_next_window_edge(window_id, direction):
     d_center_y = (d_bottom - d_top) // 2
 
     if direction in (RIGHT, LEFT):
-        win_edge_1 = win[LEFT]
-        span = win['width']
+        win_edge_1 = win.left
+        span = win.width
         candidates = x_borders
         edge_to_center_1 = d_center_x - (span // 2)
     elif direction in (UP, DOWN):
-        win_edge_1 = win[TOP]
-        span = win['height']
+        win_edge_1 = win.top
+        span = win.height
         candidates = y_borders
         edge_to_center_1 = d_center_y - (span // 2)
     else:
@@ -234,13 +240,13 @@ def move_to_next_window_edge(window_id, direction):
 
     if candidates:
         if direction == RIGHT:
-            WMCtrl.move_window_to(window_id, candidates[0], win[TOP])
+            WMCtrl.move_window_to(window_id, candidates[0], win.top)
         if direction == LEFT:
-            WMCtrl.move_window_to(window_id, candidates[-1], win[TOP])
+            WMCtrl.move_window_to(window_id, candidates[-1], win.top)
         if direction == UP:
-            WMCtrl.move_window_to(window_id, win[LEFT], candidates[-1])
+            WMCtrl.move_window_to(window_id, win.left, candidates[-1])
         if direction == DOWN:
-            WMCtrl.move_window_to(window_id, win[LEFT], candidates[0])
+            WMCtrl.move_window_to(window_id, win.left, candidates[0])
 
 
 # TODO another command to maximize to next edge?
