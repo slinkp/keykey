@@ -87,9 +87,7 @@ class WMCtrl(object):
         print ' '.join(cmd), "...with output:", out
 
     @staticmethod
-    def get_desktop_borders(desktop_id=None):
-        if desktop_id is None:
-            desktop_id = WMCtrl.get_active_desktop_id()
+    def get_desktop_borders(desktop_id):
         # TRBL order ... css has ruined me.
         out = subprocess.check_output(['wmctrl', '-d'])
         desktops = [d.split(None, 9) for d in out.splitlines()]
