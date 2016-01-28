@@ -174,7 +174,7 @@ def get_all_window_borders(desktop_borders, include_desktop=True,
 class WindowMover(object):
 
     def move_to_next_window_edge(self, window_id, direction):
-        all_ids = WMIFace.get_window_ids()
+        all_ids = self.get_window_ids()
         windows = get_window_geometries(all_ids)
 
         for i, win in enumerate(windows):
@@ -253,9 +253,10 @@ class WindowMover(object):
     def __init__(
             self,
             move_window=None,
+            get_window_ids=None,
             ):
         self.move_window = move_window
-
+        self.get_window_ids = get_window_ids
 
 # TODO another command to maximize to next edge?
 
@@ -267,6 +268,7 @@ if __name__ == '__main__':
     print "==== %s ============" % direction
     win_id = WMIFace.get_active_window_id()
     mover = WindowMover(
-        move_window=WMCtrl.move_window_to
+        move_window=WMCtrl.move_window_to,
+        get_window_ids=WMIFace.get_window_ids,
     )
     mover.move_to_next_window_edge(win_id, direction)
