@@ -78,14 +78,56 @@ def get_window_list():
     return windows
 
 
-def get_active_desktop_id():
-    # NOTE wmctrl and xdotool count from 0, wmiface counts from 1.
-    out = subprocess.check_output(['wmctrl', '-d'])
-    desktops = [d.split(None, 9) for d in out.splitlines()]
-    for d in desktops:
-        if d[1] == '*':
-            return d[0]
-    raise RuntimeError("Can't determine active desktop")
+class WMCtrl(object):
+
+    @staticmethod
+    def get_active_desktop_id():
+        # NOTE wmctrl and xdotool count from 0, wmiface counts from 1.
+        out = subprocess.check_output(['wmctrl', '-d'])
+        desktops = [d.split(None, 9) for d in out.splitlines()]
+        for d in desktops:
+            if d[1] == '*':
+                return d[0]
+        raise RuntimeError("Can't determine active desktop")
+
+    @staticmethod
+    def move_window_to(window_id, x=-1, y=-1):
+        mvarg = '0,%d,%d,-1,-1' % (x, y)
+        # mvarg = '1,%d,%d,-1,-1' % (x, y)   # experiment w/ gravity
+        cmd = ['wmctrl', '-i', '-r', window_id, '-e', mvarg]
+        out = subprocess.check_output(cmd)
+        print ' '.join(cmd), "...with output:", out
+
+    @staticmethod
+    def get_desktop_borders(desktop_id=None):
+        if desktop_id is None:
+            desktop_id = WMCtrl.get_active_desktop_id()
+        # TRBL order ... css has ruined me.
+        out = subprocess.check_output(['wmctrl', '-d'])
+        desktops = [d.split(None, 9) for d in out.splitlines()]
+        desktop_dicts = []
+        for d in desktops:
+            desktop = {
+                'id': d[0],
+                'active': True if d[1] == '*' else False,
+            }
+            # We use the "workspace" area, eg. not including the WM panel.
+            workarea_x, workarea_y = map(int, d[7].split(','))
+            workarea_w, workarea_h = map(int, d[8].split('x'))
+            desktop[TOP] = workarea_y
+            desktop[LEFT] = workarea_x
+            desktop[RIGHT] = workarea_x + workarea_w
+            desktop[BOTTOM] = workarea_y + workarea_h
+            desktop_dicts.append(desktop)
+
+            if desktop['id'] == desktop_id:
+                return (
+                    desktop[TOP],
+                    desktop[RIGHT],
+                    desktop[BOTTOM],
+                    desktop[LEFT],
+                )
+        raise ValueError("No desktop %d" % desktop_id)
 
 
 def get_active_window_hex_id():
@@ -94,35 +136,6 @@ def get_active_window_hex_id():
     """
     window_id = WMIFace.get_active_window_id()
     return _as_hex(window_id)
-
-
-def get_desktop_borders(desktop_id=None):
-    if desktop_id is None:
-        desktop_id = get_active_desktop_id()
-    # TRBL order ... css has ruined me.
-    out = subprocess.check_output(['wmctrl', '-d'])
-    desktops = [d.split(None, 9) for d in out.splitlines()]
-    desktop_dicts = []
-    for d in desktops:
-        desktop = {'id': d[0],
-                   'active': True if d[1] == '*' else False,
-                   }
-        # We use the "workspace" area, eg. not including the WM panel.
-        workarea_x, workarea_y = map(int, d[7].split(','))
-        workarea_w, workarea_h = map(int, d[8].split('x'))
-        desktop[TOP] = workarea_y
-        desktop[LEFT] = workarea_x
-        desktop[RIGHT] = workarea_x + workarea_w
-        desktop[BOTTOM] = workarea_y + workarea_h
-        desktop_dicts.append(desktop)
-
-        if desktop['id'] == desktop_id:
-            return (desktop[TOP],
-                    desktop[RIGHT],
-                    desktop[BOTTOM],
-                    desktop[LEFT],
-                    )
-    raise ValueError("No desktop %d" % desktop_id)
 
 
 def get_window_info_by_id(window_id):
@@ -144,7 +157,7 @@ def get_all_window_borders(desktop_id=None, include_desktop=True,
                            include_center=True,
                            _windowlist=None):
     if desktop_id is None:
-        desktop_id = get_active_desktop_id()
+        desktop_id = WMCtrl.get_active_desktop_id()
 
     if _windowlist is None:
         windows = get_window_list()
@@ -153,7 +166,7 @@ def get_all_window_borders(desktop_id=None, include_desktop=True,
 
     x_borders = set()
     y_borders = set()
-    top, right, bottom, left = get_desktop_borders(desktop_id)
+    top, right, bottom, left = WMCtrl.get_desktop_borders(desktop_id)
 
     def maybe_add_x(x):
         # print "X:", left, x, right
@@ -204,7 +217,7 @@ def move_to_next_window_edge(window_id, direction):
         include_desktop=True, include_center=True,
         _windowlist=windows)
 
-    d_top, d_right, d_bottom, d_left = get_desktop_borders()
+    d_top, d_right, d_bottom, d_left = WMCtrl.get_desktop_borders()
 
     # Centering the window has to be done in this func. because it depends
     # on dimensions of THIS window, which get_all_window_borders
@@ -252,22 +265,13 @@ def move_to_next_window_edge(window_id, direction):
 
     if candidates:
         if direction == RIGHT:
-            move_window_to(window_id, candidates[0], win[TOP])
+            WMCtrl.move_window_to(window_id, candidates[0], win[TOP])
         if direction == LEFT:
-            move_window_to(window_id, candidates[-1], win[TOP])
+            WMCtrl.move_window_to(window_id, candidates[-1], win[TOP])
         if direction == UP:
-            move_window_to(window_id, win[LEFT], candidates[-1])
+            WMCtrl.move_window_to(window_id, win[LEFT], candidates[-1])
         if direction == DOWN:
-            move_window_to(window_id, win[LEFT], candidates[0])
-
-
-def move_window_to(window_id, x=-1, y=-1):
-    mvarg = '0,%d,%d,-1,-1' % (x, y)
-    # mvarg = '1,%d,%d,-1,-1' % (x, y)   # experiment w/ gravity
-    # XXX TODO use `wmiface frameGeometry id x y` where id is int
-    cmd = ['wmctrl', '-i', '-r', window_id, '-e', mvarg]
-    out = subprocess.check_output(cmd)
-    print ' '.join(cmd), "...with output:", out
+            WMCtrl.move_window_to(window_id, win[LEFT], candidates[0])
 
 
 # TODO another command to maximize to next edge?
@@ -275,7 +279,7 @@ def move_window_to(window_id, x=-1, y=-1):
 # TODO another command to emulate 'focus right' et al. from slate
 
 if __name__ == '__main__':
-    # pprint.pprint(get_desktop_borders())
+    # pprint.pprint(WMCtrl.get_desktop_borders())
     # pprint.pprint(get_all_window_borders())
     win_id = get_active_window_hex_id()
     import sys
