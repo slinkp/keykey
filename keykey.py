@@ -127,12 +127,9 @@ def get_window_info_by_id(window_id):
         raise RuntimeError("Couldn't find window %s" % window_id)
 
 
-def get_all_window_borders(desktop_id=None, include_desktop=True,
+def get_all_window_borders(desktop_borders, include_desktop=True,
                            include_center=True,
                            _windowlist=None):
-    if desktop_id is None:
-        desktop_id = WMCtrl.get_active_desktop_id()
-
     if _windowlist is None:
         all_ids = WMIFace.get_window_ids()
         windows = get_window_geometries(all_ids)
@@ -141,7 +138,7 @@ def get_all_window_borders(desktop_id=None, include_desktop=True,
 
     x_borders = set()
     y_borders = set()
-    top, right, bottom, left = WMCtrl.get_desktop_borders(desktop_id)
+    top, right, bottom, left = desktop_borders
 
     def maybe_add_x(x):
         # print "X:", left, x, right
@@ -189,11 +186,14 @@ def move_to_next_window_edge(window_id, direction):
     else:
         raise RuntimeError("Active window not found")
 
+    desktop_id = WMCtrl.get_active_desktop_id()
+    desktop_borders = WMCtrl.get_desktop_borders(desktop_id)
     x_borders, y_borders = get_all_window_borders(
+        desktop_borders=desktop_borders,
         include_desktop=True, include_center=True,
         _windowlist=windows)
 
-    d_top, d_right, d_bottom, d_left = WMCtrl.get_desktop_borders()
+    d_top, d_right, d_bottom, d_left = desktop_borders
 
     # Centering the window has to be done in this func. because it depends
     # on dimensions of THIS window, which get_all_window_borders
