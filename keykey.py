@@ -242,13 +242,19 @@ class WindowMover(object):
 
         if candidates:
             if direction == RIGHT:
-                WMCtrl.move_window_to(window_id, candidates[0], win.top)
+                self.move_window(window_id, candidates[0], win.top)
             if direction == LEFT:
-                WMCtrl.move_window_to(window_id, candidates[-1], win.top)
+                self.move_window(window_id, candidates[-1], win.top)
             if direction == UP:
-                WMCtrl.move_window_to(window_id, win.left, candidates[-1])
+                self.move_window(window_id, win.left, candidates[-1])
             if direction == DOWN:
-                WMCtrl.move_window_to(window_id, win.left, candidates[0])
+                self.move_window(window_id, win.left, candidates[0])
+
+    def __init__(
+            self,
+            move_window=None,
+            ):
+        self.move_window = move_window
 
 
 # TODO another command to maximize to next edge?
@@ -260,5 +266,7 @@ if __name__ == '__main__':
     direction = sys.argv[1]
     print "==== %s ============" % direction
     win_id = WMIFace.get_active_window_id()
-    mover = WindowMover()
+    mover = WindowMover(
+        move_window=WMCtrl.move_window_to
+    )
     mover.move_to_next_window_edge(win_id, direction)
