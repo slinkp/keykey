@@ -32,7 +32,7 @@ class WMIFace(object):
         return window_ids
 
     @classmethod
-    def get_window_dimensions(cls, window_id):
+    def _get_window_dimensions(cls, window_id):
         """
         Given a window id, return width, height, x (top), y (left)
         """
@@ -45,6 +45,18 @@ class WMIFace(object):
         out = subprocess.check_output(['wmiface', 'activeWindow'])
         return out.strip()
 
+    @classmethod
+    def get_window_geometry(cls, w_id):
+        width, height, x, y = cls._get_window_dimensions(w_id)
+        w = {'id': w_id}
+        w['width'] = width
+        w['height'] = height
+        w[LEFT] = w['x'] = x
+        w[TOP] = w['y'] = y
+        w[RIGHT] = w['x'] + w['width']
+        w[BOTTOM] = w['y'] + w['height']
+        return w
+
 
 def get_window_geometries(window_ids):
     """
@@ -53,16 +65,8 @@ def get_window_geometries(window_ids):
     # Convenience borders.
     windows = []
     for w_id in window_ids:
-        width, height, x, y = WMIFace.get_window_dimensions(w_id)
-        w = {'id': w_id}
+        w = WMIFace.get_window_geometry(w_id)
         windows.append(w)
-        w['width'] = width
-        w['height'] = height
-        w[LEFT] = w['x'] = x
-        w[TOP] = w['y'] = y
-        w[RIGHT] = w['x'] + w['width']
-        w[BOTTOM] = w['y'] + w['height']
-
     return windows
 
 
@@ -114,17 +118,6 @@ class WMCtrl(object):
                     desktop[LEFT],
                 )
         raise ValueError("No desktop %d" % desktop_id)
-
-
-def get_window_info_by_id(window_id):
-    """
-    Return geometry info for the specified window (int or hex).
-    """
-    try:
-        windows = get_window_geometries([window_id])
-        return windows[0]
-    except Exception:
-        raise RuntimeError("Couldn't find window %s" % window_id)
 
 
 def get_all_window_borders(desktop_borders, include_desktop=True,
