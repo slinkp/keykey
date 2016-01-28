@@ -57,23 +57,23 @@ class WMIFace(object):
         out = subprocess.check_output(['wmiface', 'activeWindow'])
         return out.strip()
 
+    @classmethod
+    def get_window_geometries(cls, window_ids):
+        """
+        Get list of WindowGeometry for all the given window ids.
+        """
+        # Convenience borders.
+        windows = []
+        for w_id in window_ids:
+            geom = cls.get_window_dimensions(w_id)
+            windows.append(geom)
+        return windows
+
 
 WindowGeometry = collections.namedtuple(
     'WindowGeometry',
     ['id', 'width', 'height', 'x', 'y', LEFT, TOP, RIGHT, BOTTOM]
 )
-
-
-def get_window_geometries(window_ids):
-    """
-    Get list of WindowGeometry for all the given window ids.
-    """
-    # Convenience borders.
-    windows = []
-    for w_id in window_ids:
-        geom = WMIFace.get_window_dimensions(w_id)
-        windows.append(geom)
-    return windows
 
 
 class WMCtrl(object):
@@ -178,15 +178,17 @@ class WindowMover(object):
             get_window_ids=None,
             get_active_desktop_id=None,
             get_desktop_borders=None,
+            get_window_geometries=None,
             ):
         self.move_window = move_window
         self.get_window_ids = get_window_ids
         self.get_active_desktop_id = get_active_desktop_id
         self.get_desktop_borders = get_desktop_borders
+        self.get_window_geometries = get_window_geometries
 
     def move_to_next_window_edge(self, window_id, direction):
         all_ids = self.get_window_ids()
-        windows = get_window_geometries(all_ids)
+        windows = self.get_window_geometries(all_ids)
 
         for i, win in enumerate(windows):
             if window_id == win.id:
@@ -274,6 +276,7 @@ if __name__ == '__main__':
     mover = WindowMover(
         move_window=WMCtrl.move_window_to,
         get_window_ids=WMIFace.get_window_ids,
+        get_window_geometries=WMIFace.get_window_geometries,
         get_active_desktop_id=WMCtrl.get_active_desktop_id,
         get_desktop_borders=WMCtrl.get_desktop_borders,
     )
