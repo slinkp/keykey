@@ -171,82 +171,84 @@ def get_all_window_borders(desktop_borders, include_desktop=True,
     return (x_borders, y_borders)
 
 
-def move_to_next_window_edge(window_id, direction):
-    all_ids = WMIFace.get_window_ids()
-    windows = get_window_geometries(all_ids)
+class WindowMover(object):
 
-    for i, win in enumerate(windows):
-        if window_id == win.id:
-            print "Active window: %sx%s+%s+%s" % (win.width, win.height,
-                                                  win.left, win.top)
-            # Don't include it in get_all_window_borders()
-            windows.pop(i)
-            break
-    else:
-        raise RuntimeError("Active window not found")
+    def move_to_next_window_edge(self, window_id, direction):
+        all_ids = WMIFace.get_window_ids()
+        windows = get_window_geometries(all_ids)
 
-    desktop_id = WMCtrl.get_active_desktop_id()
-    desktop_borders = WMCtrl.get_desktop_borders(desktop_id)
-    x_borders, y_borders = get_all_window_borders(
-        desktop_borders=desktop_borders,
-        include_desktop=True, include_center=True,
-        _windowlist=windows)
+        for i, win in enumerate(windows):
+            if window_id == win.id:
+                print "Active window: %sx%s+%s+%s" % (win.width, win.height,
+                                                      win.left, win.top)
+                # Don't include it in get_all_window_borders()
+                windows.pop(i)
+                break
+        else:
+            raise RuntimeError("Active window not found")
 
-    d_top, d_right, d_bottom, d_left = desktop_borders
+        desktop_id = WMCtrl.get_active_desktop_id()
+        desktop_borders = WMCtrl.get_desktop_borders(desktop_id)
+        x_borders, y_borders = get_all_window_borders(
+            desktop_borders=desktop_borders,
+            include_desktop=True, include_center=True,
+            _windowlist=windows)
 
-    # Centering the window has to be done in this func. because it depends
-    # on dimensions of THIS window, which get_all_window_borders
-    # doesn't know.
-    d_center_x = (d_right - d_left) // 2
-    d_center_y = (d_bottom - d_top) // 2
+        d_top, d_right, d_bottom, d_left = desktop_borders
 
-    if direction in (RIGHT, LEFT):
-        win_edge_1 = win.left
-        span = win.width
-        candidates = x_borders
-        edge_to_center_1 = d_center_x - (span // 2)
-    elif direction in (UP, DOWN):
-        win_edge_1 = win.top
-        span = win.height
-        candidates = y_borders
-        edge_to_center_1 = d_center_y - (span // 2)
-    else:
-        raise ValueError(u"Invalid direction %s" % direction)
+        # Centering the window has to be done in this func. because it depends
+        # on dimensions of THIS window, which get_all_window_borders
+        # doesn't know.
+        d_center_x = (d_right - d_left) // 2
+        d_center_y = (d_bottom - d_top) // 2
 
-    if direction == RIGHT:
-        def is_valid(x):
-            return x > win_edge_1 and x <= (d_right - span)
-    elif direction == LEFT:
-        def is_valid(x):
-            return x < win_edge_1 and x >= d_left
-    elif direction == UP:
-        def is_valid(y):
-            return y < win_edge_1 and y >= d_top
-    elif direction == DOWN:
-        def is_valid(y):
-            return y > win_edge_1 and y <= (d_bottom - span)
+        if direction in (RIGHT, LEFT):
+            win_edge_1 = win.left
+            span = win.width
+            candidates = x_borders
+            edge_to_center_1 = d_center_x - (span // 2)
+        elif direction in (UP, DOWN):
+            win_edge_1 = win.top
+            span = win.height
+            candidates = y_borders
+            edge_to_center_1 = d_center_y - (span // 2)
+        else:
+            raise ValueError(u"Invalid direction %s" % direction)
 
-    # Allow snapping to both sides of an edge.
-    candidates.extend([c - span for c in candidates])
-    # Allow snapping to exact screen center.
-    # This is after the previous line on purpose -
-    # don't want to snap to center + 1/2 span for no reason.
-    candidates.append(edge_to_center_1)
-
-    candidates = sorted(set(candidates))
-    candidates = [c for c in candidates if is_valid(c)]
-
-    print "Candidates are: ", candidates
-
-    if candidates:
         if direction == RIGHT:
-            WMCtrl.move_window_to(window_id, candidates[0], win.top)
-        if direction == LEFT:
-            WMCtrl.move_window_to(window_id, candidates[-1], win.top)
-        if direction == UP:
-            WMCtrl.move_window_to(window_id, win.left, candidates[-1])
-        if direction == DOWN:
-            WMCtrl.move_window_to(window_id, win.left, candidates[0])
+            def is_valid(x):
+                return x > win_edge_1 and x <= (d_right - span)
+        elif direction == LEFT:
+            def is_valid(x):
+                return x < win_edge_1 and x >= d_left
+        elif direction == UP:
+            def is_valid(y):
+                return y < win_edge_1 and y >= d_top
+        elif direction == DOWN:
+            def is_valid(y):
+                return y > win_edge_1 and y <= (d_bottom - span)
+
+        # Allow snapping to both sides of an edge.
+        candidates.extend([c - span for c in candidates])
+        # Allow snapping to exact screen center.
+        # This is after the previous line on purpose -
+        # don't want to snap to center + 1/2 span for no reason.
+        candidates.append(edge_to_center_1)
+
+        candidates = sorted(set(candidates))
+        candidates = [c for c in candidates if is_valid(c)]
+
+        print "Candidates are: ", candidates
+
+        if candidates:
+            if direction == RIGHT:
+                WMCtrl.move_window_to(window_id, candidates[0], win.top)
+            if direction == LEFT:
+                WMCtrl.move_window_to(window_id, candidates[-1], win.top)
+            if direction == UP:
+                WMCtrl.move_window_to(window_id, win.left, candidates[-1])
+            if direction == DOWN:
+                WMCtrl.move_window_to(window_id, win.left, candidates[0])
 
 
 # TODO another command to maximize to next edge?
@@ -254,10 +256,9 @@ def move_to_next_window_edge(window_id, direction):
 # TODO another command to emulate 'focus right' et al. from slate
 
 if __name__ == '__main__':
-    # pprint.pprint(WMCtrl.get_desktop_borders())
-    # pprint.pprint(get_all_window_borders())
     import sys
     direction = sys.argv[1]
     print "==== %s ============" % direction
     win_id = WMIFace.get_active_window_id()
-    move_to_next_window_edge(win_id, direction)
+    mover = WindowMover()
+    mover.move_to_next_window_edge(win_id, direction)
