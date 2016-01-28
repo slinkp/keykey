@@ -46,12 +46,10 @@ class WMIFace(object):
         return out.strip()
 
 
-def get_window_list():
+def get_window_list(window_ids):
     """
-    Get geometries of all windows on current workspace.
+    Get geometries of all the given window ids.
     """
-    window_ids = WMIFace.get_window_ids()
-
     # Convenience borders.
     windows = []
     for w_id in window_ids:
@@ -124,14 +122,10 @@ def get_window_info_by_id(window_id):
     """
     Return geometry info for the specified window (int or hex).
     """
-    windows = get_window_list()
-    windows = [w for w in windows if window_id in (w['id'], w['hex_id'])]
-    if len(windows) == 1:
+    try:
+        windows = get_window_list([window_id])
         return windows[0]
-    elif len(windows) > 1:
-        raise RuntimeError("Too many matching windows, should never happen. %s"
-                           % window_id)
-    else:
+    except Exception:
         raise RuntimeError("Couldn't find window %s" % window_id)
 
 
@@ -142,7 +136,8 @@ def get_all_window_borders(desktop_id=None, include_desktop=True,
         desktop_id = WMCtrl.get_active_desktop_id()
 
     if _windowlist is None:
-        windows = get_window_list()
+        all_ids = WMIFace.get_window_ids()
+        windows = get_window_list(all_ids)
     else:
         windows = _windowlist
 
@@ -183,7 +178,8 @@ def get_all_window_borders(desktop_id=None, include_desktop=True,
 
 
 def move_to_next_window_edge(window_id, direction):
-    windows = get_window_list()
+    all_ids = WMIFace.get_window_ids()
+    windows = get_window_list(all_ids)
 
     for i, win in enumerate(windows):
         if window_id == win['id']:
