@@ -19,8 +19,6 @@ DOWN = 'down'
 TOP = 'top'
 BOTTOM = 'bottom'
 
-wmiface_geom_re = re.compile(r'(\d+)x(\d+)\+(-?\d+)\+(-?\d+)')
-
 
 def _as_hex(intstring):
     return hex(int(intstring)).replace('0x', '0x0')
@@ -31,19 +29,42 @@ def _as_intstring(hexstring):
     return str(int(hexstring, 16))
 
 
+class WMIFace(object):
+
+    # eg. 650x437+0+-31
+    _geom_re = re.compile(r'(\d+)x(\d+)\+(-?\d+)\+(-?\d+)')
+
+    @staticmethod
+    def get_window_ids():
+        out = subprocess.check_output(['wmiface', 'normalWindows', '1'])
+        window_ids = out.splitlines()
+        return window_ids
+
+    @classmethod
+    def get_window_dimensions(cls, window_id):
+        """
+        Given a window id, return width, height, x (top), y (left)
+        """
+        out = subprocess.check_output(['wmiface', 'frameGeometry', window_id])
+        width, height, x, y = map(int, cls._geom_re.match(out).groups())
+        return width, height, x, y
+
+    @staticmethod
+    def get_active_window_id():
+        out = subprocess.check_output(['wmiface', 'activeWindow'])
+        return out.strip()
+
+
 def get_window_list():
     """
     Get geometries of all windows on current workspace.
     """
-    out = subprocess.check_output(['wmiface', 'normalWindows', '1'])
-    window_ids = out.splitlines()
+    window_ids = WMIFace.get_window_ids()
 
     # Convenience borders.
     windows = []
     for w_id in window_ids:
-        out = subprocess.check_output(['wmiface', 'frameGeometry', w_id])
-        # eg. 650x437+0+-31
-        width, height, x, y = map(int, wmiface_geom_re.match(out).groups())
+        width, height, x, y = WMIFace.get_window_dimensions(w_id)
         w = {'id': w_id,
              'hex_id': _as_hex(w_id)}
         windows.append(w)
@@ -71,8 +92,8 @@ def get_active_window_hex_id():
     """
     Get hex id of currently active window.
     """
-    out = subprocess.check_output(['wmiface', 'activeWindow'])
-    return _as_hex(out.strip())
+    window_id = WMIFace.get_active_window_id()
+    return _as_hex(window_id)
 
 
 def get_desktop_borders(desktop_id=None):
