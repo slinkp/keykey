@@ -19,7 +19,7 @@ DOWN = 'down'
 TOP = 'top'
 BOTTOM = 'bottom'
 
-geom_re = re.compile(r'(\d+)x(\d+)\+(-?\d+)\+(-?\d+)')
+wmiface_geom_re = re.compile(r'(\d+)x(\d+)\+(-?\d+)\+(-?\d+)')
 
 
 def _as_hex(intstring):
@@ -43,7 +43,7 @@ def get_window_list():
     for w_id in window_ids:
         out = subprocess.check_output(['wmiface', 'frameGeometry', w_id])
         # eg. 650x437+0+-31
-        width, height, x, y = map(int, geom_re.match(out).groups())
+        width, height, x, y = map(int, wmiface_geom_re.match(out).groups())
         w = {'id': w_id,
              'hex_id': _as_hex(w_id)}
         windows.append(w)
