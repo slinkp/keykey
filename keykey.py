@@ -126,14 +126,10 @@ class WMCtrl(object):
         raise ValueError("No desktop %d" % desktop_id)
 
 
-def get_all_window_borders(desktop_borders, include_desktop=True,
-                           include_center=True,
-                           _windowlist=None):
-    if _windowlist is None:
-        all_ids = WMIFace.get_window_ids()
-        windows = get_window_geometries(all_ids)
-    else:
-        windows = _windowlist
+def get_interesting_edges(desktop_borders, include_desktop=True,
+                          include_center=True,
+                          windowlist=None):
+    windows = windowlist
 
     x_borders = set()
     y_borders = set()
@@ -173,6 +169,21 @@ def get_all_window_borders(desktop_borders, include_desktop=True,
 
 class WindowMover(object):
 
+    """
+    Object responsible for moving windows
+    """
+    def __init__(
+            self,
+            move_window=None,
+            get_window_ids=None,
+            get_active_desktop_id=None,
+            get_desktop_borders=None,
+            ):
+        self.move_window = move_window
+        self.get_window_ids = get_window_ids
+        self.get_active_desktop_id = get_active_desktop_id
+        self.get_desktop_borders = get_desktop_borders
+
     def move_to_next_window_edge(self, window_id, direction):
         all_ids = self.get_window_ids()
         windows = get_window_geometries(all_ids)
@@ -181,7 +192,7 @@ class WindowMover(object):
             if window_id == win.id:
                 print "Active window: %sx%s+%s+%s" % (win.width, win.height,
                                                       win.left, win.top)
-                # Don't include it in get_all_window_borders()
+                # Don't include it in get_interesting_edges()
                 windows.pop(i)
                 break
         else:
@@ -189,15 +200,15 @@ class WindowMover(object):
 
         desktop_id = self.get_active_desktop_id()
         desktop_borders = self.get_desktop_borders(desktop_id)
-        x_borders, y_borders = get_all_window_borders(
+        x_borders, y_borders = get_interesting_edges(
             desktop_borders=desktop_borders,
             include_desktop=True, include_center=True,
-            _windowlist=windows)
+            windowlist=windows)
 
         d_top, d_right, d_bottom, d_left = desktop_borders
 
         # Centering the window has to be done in this func. because it depends
-        # on dimensions of THIS window, which get_all_window_borders
+        # on dimensions of THIS window, which get_interesting_edges
         # doesn't know.
         d_center_x = (d_right - d_left) // 2
         d_center_y = (d_bottom - d_top) // 2
@@ -250,17 +261,6 @@ class WindowMover(object):
             if direction == DOWN:
                 self.move_window(window_id, win.left, candidates[0])
 
-    def __init__(
-            self,
-            move_window=None,
-            get_window_ids=None,
-            get_active_desktop_id=None,
-            get_desktop_borders=None,
-            ):
-        self.move_window = move_window
-        self.get_window_ids = get_window_ids
-        self.get_active_desktop_id = get_active_desktop_id
-        self.get_desktop_borders = get_desktop_borders
 
 # TODO another command to maximize to next edge?
 
