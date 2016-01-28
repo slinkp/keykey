@@ -20,15 +20,6 @@ TOP = 'top'
 BOTTOM = 'bottom'
 
 
-def _as_hex(intstring):
-    return hex(int(intstring)).replace('0x', '0x0')
-
-
-def _as_intstring(hexstring):
-    hexstring = hexstring.split('x', 1)[-1]
-    return str(int(hexstring, 16))
-
-
 class WMIFace(object):
 
     # eg. 650x437+0+-31
@@ -65,8 +56,7 @@ def get_window_list():
     windows = []
     for w_id in window_ids:
         width, height, x, y = WMIFace.get_window_dimensions(w_id)
-        w = {'id': w_id,
-             'hex_id': _as_hex(w_id)}
+        w = {'id': w_id}
         windows.append(w)
         w['width'] = width
         w['height'] = height
@@ -128,14 +118,6 @@ class WMCtrl(object):
                     desktop[LEFT],
                 )
         raise ValueError("No desktop %d" % desktop_id)
-
-
-def get_active_window_hex_id():
-    """
-    Get hex id of currently active window.
-    """
-    window_id = WMIFace.get_active_window_id()
-    return _as_hex(window_id)
 
 
 def get_window_info_by_id(window_id):
@@ -204,7 +186,7 @@ def move_to_next_window_edge(window_id, direction):
     windows = get_window_list()
 
     for i, win in enumerate(windows):
-        if window_id in (win['id'], win['hex_id']):
+        if window_id == win['id']:
             print "Active window: %sx%s+%s+%s" % (win['width'], win['height'],
                                                   win[LEFT], win[TOP])
             # Don't include it in get_all_window_borders()
@@ -281,8 +263,8 @@ def move_to_next_window_edge(window_id, direction):
 if __name__ == '__main__':
     # pprint.pprint(WMCtrl.get_desktop_borders())
     # pprint.pprint(get_all_window_borders())
-    win_id = get_active_window_hex_id()
     import sys
     direction = sys.argv[1]
     print "==== %s ============" % direction
+    win_id = WMIFace.get_active_window_id()
     move_to_next_window_edge(win_id, direction)
