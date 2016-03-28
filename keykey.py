@@ -3,15 +3,21 @@
 """
 HACKS to replace slate.js with wmiface / wmctrl / xdotool commands.
 
-TODO replace wmiface with combination of xdotool, xwinfo, xprop...
-eg. see second answer part of
-http://unix.stackexchange.com/a/156349/84607
-which can be  simplified (easier to parse in python than bash+sed)
+wmiface comes from KDE, but ports of it to eg. ubuntu or xubuntu
+seem to be unmaintained, so this has been abstracted to
+swap out other commands.
 """
 
+# Some of this came from
+# eg. second answer part of
+# http://unix.stackexchange.com/a/156349/84607
+# which can be simplified (easier to parse in python than bash+sed)
+
+import abc
 import collections
-import subprocess
 import re
+import subprocess
+
 
 LEFT = 'left'
 RIGHT = 'right'
@@ -21,13 +27,54 @@ TOP = 'top'
 BOTTOM = 'bottom'
 
 
-class WMIFace(object):
+class AbstractWindowInfoService(object):
+
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
+    def get_window_ids(self, desktop_id):
+        """
+        return list of integer IDs for the given desktop ID.
+
+        Some implementations may ignore the desktop_id parameter
+        and use the current desktop.
+        """
+
+    @abc.abstractmethod
+    def get_window_dimensions(window_id):
+        """
+        Given a window id, return a WindowGeometry
+        """
+
+    @abc.abstractmethod
+    def get_active_window_id():
+        """
+        Return integer ID for currently active window.
+        """
+
+    @classmethod
+    def get_window_geometries(cls, window_ids):
+        """
+        Get list of WindowGeometry for all the given window ids.
+        """
+        # Convenience borders.
+        windows = []
+        for w_id in window_ids:
+            geom = cls.get_window_dimensions(w_id)
+            windows.append(geom)
+        return windows
+
+
+class WMIFace(AbstractWindowInfoService):
 
     # eg. 650x437+0+-31
     _geom_re = re.compile(r'(\d+)x(\d+)\+(-?\d+)\+(-?\d+)')
 
     @staticmethod
-    def get_window_ids():
+    def get_window_ids(desktop_id):
+        # 1 = current desktop;  0 = all non-sticky windows afaict.
+        # but since we get no indication of which desktop they're on,
+        # we just use current desktop.
         out = subprocess.check_output(['wmiface', 'normalWindows', '1'])
         window_ids = out.splitlines()
         return window_ids
@@ -57,17 +104,73 @@ class WMIFace(object):
         out = subprocess.check_output(['wmiface', 'activeWindow'])
         return out.strip()
 
+
+class NewWindowInfo(AbstractWindowInfoService):
+
+    _left_re = re.compile(r'Absolute upper-left X:\s+([-\d]+)')
+    _top_re = re.compile(r'Absolute upper-left Y:\s+([-\d]+)')
+    _width_re = re.compile(r'Width:\s+(\d+)')
+    _height_re = re.compile(r'Height:\s+(\d+)')
+    _extents_re = re.compile(r'Frame extents:\s+(\d+), (\d+), (\d+), (\d+)')
+
+    @staticmethod
+    def get_window_ids(desktop_id):
+        """
+        return list of integer IDs, for given desktop
+        """
+        out = subprocess.check_output(['wmctrl', '-l'])
+        window_ids = []
+        for line in out.splitlines():
+            if not line.strip():
+                continue
+            parts = line.split()
+            if parts[1] != desktop_id:
+                continue
+            window_ids.append(str(int(parts[0], 16)))
+        return window_ids
+
     @classmethod
-    def get_window_geometries(cls, window_ids):
+    def get_window_dimensions(cls, window_id):
         """
-        Get list of WindowGeometry for all the given window ids.
+        Given a window id, return a WindowGeometry
         """
-        # Convenience borders.
-        windows = []
-        for w_id in window_ids:
-            geom = cls.get_window_dimensions(w_id)
-            windows.append(geom)
-        return windows
+        out = subprocess.check_output(['xwininfo', '-id', window_id])
+        width = int(cls._width_re.search(out).group(1))
+        height = int(cls._height_re.search(out).group(1))
+        left = int(cls._left_re.search(out).group(1))
+        top = int(cls._top_re.search(out).group(1))
+
+        # Add offsets for window manager decorations.
+        extents_out = subprocess.check_output(
+            ['xwininfo', '-id', window_id, '-wm'])
+        margin_l, margin_r, margin_t, margin_b = [
+            int(n) for n in cls._extents_re.search(extents_out).groups()
+        ]
+        x = left - margin_l
+        y = top - margin_t
+        width += margin_l + margin_r
+        height += margin_t + margin_b
+
+        geom = WindowGeometry(
+            id=window_id,
+            width=width,
+            height=height,
+            x=x,
+            y=y,
+            left=x,
+            top=y,
+            right=x + width,
+            bottom=y + height,
+        )
+        return geom
+
+    @staticmethod
+    def get_active_window_id():
+        """
+        Return integer ID for currently active window.
+        """
+        out = subprocess.check_output(['xdotool', 'getactivewindow'])
+        return out.strip()
 
 
 WindowGeometry = collections.namedtuple(
@@ -76,7 +179,31 @@ WindowGeometry = collections.namedtuple(
 )
 
 
-class WMCtrl(object):
+class AbstractDesktopService(object):
+
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
+    def get_active_desktop_id(self):
+        """
+        In multi-desktop environments, identify which desktop we're on.
+        """
+
+    @abc.abstractmethod
+    def get_desktop_borders(self, desktop_id):
+        """
+        Get the borders of the given desktop, as a tuple
+        of (top, right, bottom, left).
+        """
+
+    @abc.abstractmethod
+    def move_window_to(self, window_id, x=-1, y=-1):
+        """
+        Move the window such that left edge = x and top edge = y.
+        """
+
+
+class WMCtrl(AbstractDesktopService):
 
     @staticmethod
     def get_active_desktop_id():
@@ -187,7 +314,8 @@ class WindowMover(object):
         self.get_window_geometries = get_window_geometries
 
     def move_to_next_window_edge(self, window_id, direction):
-        all_ids = self.get_window_ids()
+        desktop_id = self.get_active_desktop_id()
+        all_ids = self.get_window_ids(desktop_id)
         windows = self.get_window_geometries(all_ids)
 
         for i, win in enumerate(windows):
@@ -272,12 +400,19 @@ if __name__ == '__main__':
     import sys
     direction = sys.argv[1]
     print "==== %s ============" % direction
-    win_id = WMIFace.get_active_window_id()
+
+    desktop_svc = WMCtrl()
+    win_svc = NewWindowInfo()
+    # print win_svc.get_window_dimensions(win_svc.get_active_window_id())
+    # print win_svc.get_window_ids()
+    # print WMIFace.get_window_ids()
+
     mover = WindowMover(
-        move_window=WMCtrl.move_window_to,
-        get_window_ids=WMIFace.get_window_ids,
-        get_window_geometries=WMIFace.get_window_geometries,
-        get_active_desktop_id=WMCtrl.get_active_desktop_id,
-        get_desktop_borders=WMCtrl.get_desktop_borders,
+        move_window=desktop_svc.move_window_to,
+        get_window_ids=win_svc.get_window_ids,
+        get_window_geometries=win_svc.get_window_geometries,
+        get_active_desktop_id=desktop_svc.get_active_desktop_id,
+        get_desktop_borders=desktop_svc.get_desktop_borders,
     )
+    win_id = win_svc.get_active_window_id()
     mover.move_to_next_window_edge(win_id, direction)
