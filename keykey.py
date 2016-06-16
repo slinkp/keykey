@@ -27,6 +27,15 @@ TOP = 'top'
 BOTTOM = 'bottom'
 
 
+def _as_hex(intstring):
+    return hex(int(intstring)).replace('0x', '0x0')
+
+
+def _as_intstring(hexstring):
+    hexstring = hexstring.split('x', 1)[-1]
+    return str(int(hexstring, 16))
+
+
 class AbstractWindowInfoService(object):
 
     __metaclass__ = abc.ABCMeta
@@ -61,7 +70,8 @@ class AbstractWindowInfoService(object):
         windows = []
         for w_id in window_ids:
             geom = cls.get_window_dimensions(w_id)
-            windows.append(geom)
+            if geom is not None:
+               windows.append(geom)
         return windows
 
 
@@ -143,8 +153,12 @@ class NewWindowInfo(AbstractWindowInfoService):
         # Add offsets for window manager decorations.
         extents_out = subprocess.check_output(
             ['xwininfo', '-id', window_id, '-wm'])
+        extents_match = cls._extents_re.search(extents_out)
+        if extents_match is None:
+            # XXX TODO: happens with some windows eg. hidden ones
+            return None
         margin_l, margin_r, margin_t, margin_b = [
-            int(n) for n in cls._extents_re.search(extents_out).groups()
+            int(n) for n in extents_match.groups()
         ]
         x = left - margin_l
         y = top - margin_t
@@ -205,6 +219,16 @@ class AbstractDesktopService(object):
 
 class WMCtrl(AbstractDesktopService):
 
+    def __init__(self, translate_ids=False):
+        desktop_info = subprocess.check_output(['wmctrl', '-m'])
+        is_compiz = 'Name: Compiz' in desktop_info
+        self.translate_ids = is_compiz
+
+    def prepare_window_id(self, id):
+        if self.translate_ids:
+            return _as_hex(id)
+        return id
+
     @staticmethod
     def get_active_desktop_id():
         # NOTE wmctrl and xdotool count from 0, wmiface counts from 1.
@@ -215,10 +239,12 @@ class WMCtrl(AbstractDesktopService):
                 return d[0]
         raise RuntimeError("Can't determine active desktop")
 
-    @staticmethod
-    def move_window_to(window_id, x=-1, y=-1):
+    def move_window_to(self, window_id, x=-1, y=-1):
         mvarg = '0,%d,%d,-1,-1' % (x, y)
         # mvarg = '1,%d,%d,-1,-1' % (x, y)   # experiment w/ gravity
+        # XXX TODO - why under compiz do we need hex ids here but
+        # get int ids listed? XXX should we be translating when listing instead?
+        window_id = self.prepare_window_id(window_id)
         cmd = ['wmctrl', '-i', '-r', window_id, '-e', mvarg]
         out = subprocess.check_output(cmd)
         print ' '.join(cmd), "...with output:", out
