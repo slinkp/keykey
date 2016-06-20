@@ -221,8 +221,8 @@ class WMCtrl(AbstractDesktopService):
 
     def __init__(self, translate_ids=False):
         desktop_info = subprocess.check_output(['wmctrl', '-m'])
-        is_compiz = 'Name: Compiz' in desktop_info
-        self.translate_ids = is_compiz
+        self.is_compiz = 'Name: Compiz' in desktop_info
+        self.translate_ids = self.is_compiz
 
     def prepare_window_id(self, id):
         if self.translate_ids:
@@ -240,10 +240,19 @@ class WMCtrl(AbstractDesktopService):
         raise RuntimeError("Can't determine active desktop")
 
     def move_window_to(self, window_id, x=-1, y=-1):
+        # XXX TODO: Any way to compensate for compiz shadow on panel?  Seems to
+        # create a 10px border that I can move into manually, but not with
+        # wmctrl.  e.g. if height of panel is 24, and I move to y=24, then I
+        # actually end up at y=34.  But mouse can move window to y=24!
+        # Likewise, there is a 10px left padding that I can't move beyond but
+        # ONLY on the leftmost workspace... on other workspaces I can get to
+        # x=0.
+
         mvarg = '0,%d,%d,-1,-1' % (x, y)
         # mvarg = '1,%d,%d,-1,-1' % (x, y)   # experiment w/ gravity
         # XXX TODO - why under compiz do we need hex ids here but
-        # get int ids listed? XXX should we be translating when listing instead?
+        # get int ids listed?
+        # XXX should we be translating when listing instead?
         window_id = self.prepare_window_id(window_id)
         cmd = ['wmctrl', '-i', '-r', window_id, '-e', mvarg]
         out = subprocess.check_output(cmd)
@@ -282,6 +291,22 @@ class WMCtrl(AbstractDesktopService):
 def get_interesting_edges(desktop_borders, include_desktop=True,
                           include_center=True,
                           windowlist=None):
+
+        # XXX TODO: for compiz, we should filter out windows on
+        # another viewport,
+        # i.e. here's a diff of viewing window on 2 from 1 vs. on 2 from 2.
+        # Everything's the same except left X is 1727 instead of 47. 
+#        """
+#<   Absolute upper-left X:  1727
+#---
+#>   Absolute upper-left X:  47
+#22,23c22,23
+#<   Corners:  +1727+52  --779+52  --779-588  +1727-588
+#<   -geometry 80x24+1717+14
+#---
+#>   Corners:  +47+52  -901+52  -901-588  +47-588
+#>   -geometry 80x24+37+14
+
     windows = windowlist
 
     x_borders = set()
