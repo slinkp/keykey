@@ -302,72 +302,6 @@ def get_interesting_edges(desktop_borders, include_desktop=True,
                           include_center=True,
                           windowlist=None):
 
-        # XXX TODO: for compiz, we should filter out windows on
-        # another viewport,
-
-# Here's a diff of `xwininfo -id <int>` with all combos.
-# Window is on 3.
-# First, here's the raw output:
-#xwininfo: Window id: 0x3800030 "ZOOM - Pro Account"
-#
-#  Absolute upper-left X:  -705
-#  Absolute upper-left Y:  133
-#  Relative upper-left X:  0
-#  Relative upper-left Y:  0
-#  Width: 360
-#  Height: 640
-#  Depth: 32
-#  Visual: 0x8f
-#  Visual Class: TrueColor
-#  Border width: 0
-#  Class: InputOutput
-#  Colormap: 0x380002d (not installed)
-#  Bit Gravity State: ForgetGravity
-#  Window Gravity State: NorthWestGravity
-#  Backing Store State: NotUseful
-#  Save Under State: no
-#  Map State: IsViewable
-#  Override Redirect State: no
-#  Corners:  +-705+133  -2025+133  -2025-277  +-705-277
-#  -geometry 360x640+-705+133
-
-# diff viewing from 1 vs viewing from 3:
-
-#<   Absolute upper-left X:  2655
-#---
-#>   Absolute upper-left X:  -705
-#22,23c22,23
-#<   Corners:  +2655+133  --1335+133  --1335-277  +2655-277
-#<   -geometry 360x640+2655+133
-#---
-#>   Corners:  +-705+133  -2025+133  -2025-277  +-705-277
-#>   -geometry 360x640+-705+133
-
-# Diff viewing from 2 vs. viewing from 3:
-#<   Absolute upper-left X:  975
-#---
-#>   Absolute upper-left X:  -705
-#22,23c22,23
-#<   Corners:  +975+133  -345+133  -345-277  +975-277
-#<   -geometry 360x640+975+133
-#---
-#>   Corners:  +-705+133  -2025+133  -2025-277  +-705-277
-#>   -geometry 360x640+-705+133
-
-# Diff viewing from 4 vs. viewing from 3:
-#<   Absolute upper-left X:  -2385
-#---
-#>   Absolute upper-left X:  -705
-#22,23c22,23
-#<   Corners:  +-2385+133  -3705+133  -3705-277  +-2385-277
-#<   -geometry 360x640+-2385+133
-#---
-#>   Corners:  +-705+133  -2025+133  -2025-277  +-705-277
-#>   -geometry 360x640+-705+133
-
-
-    windows = windowlist
-
     x_borders = set()
     y_borders = set()
     top, right, bottom, left = desktop_borders
@@ -393,7 +327,7 @@ def get_interesting_edges(desktop_borders, include_desktop=True,
         if top <= y <= bottom:
             y_borders.add(y)
 
-    for w in windows:
+    for w in windowlist:
         if out_of_bounds(w):
             continue
 
