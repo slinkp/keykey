@@ -260,10 +260,11 @@ class WMCtrl(AbstractDesktopService):
 
     @staticmethod
     def get_desktop_borders(desktop_id):
-        # TRBL order ... css has ruined me.
+        """
+        Returns (top, right, bottom, left)
+        """
         out = subprocess.check_output(['wmctrl', '-d'])
         desktops = [d.split(None, 9) for d in out.splitlines()]
-        desktop_dicts = []
         for d in desktops:
             desktop = {
                 'id': d[0],
@@ -272,11 +273,20 @@ class WMCtrl(AbstractDesktopService):
             # We use the "workspace" area, eg. not including the WM panel.
             workarea_x, workarea_y = map(int, d[7].split(','))
             workarea_w, workarea_h = map(int, d[8].split('x'))
+
+            # TODO this assumes we are in 1st row of workspaces
             desktop[TOP] = workarea_y
             desktop[LEFT] = workarea_x
             desktop[RIGHT] = workarea_x + workarea_w
             desktop[BOTTOM] = workarea_y + workarea_h
-            desktop_dicts.append(desktop)
+
+            ## Viewport info... currently unused.
+            # vp_x, vp_y = map(int, d[5].split(','))
+            # viewport = {}
+            # viewport[TOP] = 0  # TODO handle > 1 rows of workspaces
+            # viewport[LEFT] = vp_x
+            # viewport[RIGHT] = vp_x + workarea_w + workarea_x
+            # viewport[BOTTOM] = vp_y + workarea_h + workarea_y
 
             if desktop['id'] == desktop_id:
                 return (
@@ -294,18 +304,67 @@ def get_interesting_edges(desktop_borders, include_desktop=True,
 
         # XXX TODO: for compiz, we should filter out windows on
         # another viewport,
-        # i.e. here's a diff of viewing window on 2 from 1 vs. on 2 from 2.
-        # Everything's the same except left X is 1727 instead of 47. 
-#        """
-#<   Absolute upper-left X:  1727
+
+# Here's a diff of `xwininfo -id <int>` with all combos.
+# Window is on 3.
+# First, here's the raw output:
+#xwininfo: Window id: 0x3800030 "ZOOM - Pro Account"
+#
+#  Absolute upper-left X:  -705
+#  Absolute upper-left Y:  133
+#  Relative upper-left X:  0
+#  Relative upper-left Y:  0
+#  Width: 360
+#  Height: 640
+#  Depth: 32
+#  Visual: 0x8f
+#  Visual Class: TrueColor
+#  Border width: 0
+#  Class: InputOutput
+#  Colormap: 0x380002d (not installed)
+#  Bit Gravity State: ForgetGravity
+#  Window Gravity State: NorthWestGravity
+#  Backing Store State: NotUseful
+#  Save Under State: no
+#  Map State: IsViewable
+#  Override Redirect State: no
+#  Corners:  +-705+133  -2025+133  -2025-277  +-705-277
+#  -geometry 360x640+-705+133
+
+# diff viewing from 1 vs viewing from 3:
+
+#<   Absolute upper-left X:  2655
 #---
-#>   Absolute upper-left X:  47
+#>   Absolute upper-left X:  -705
 #22,23c22,23
-#<   Corners:  +1727+52  --779+52  --779-588  +1727-588
-#<   -geometry 80x24+1717+14
+#<   Corners:  +2655+133  --1335+133  --1335-277  +2655-277
+#<   -geometry 360x640+2655+133
 #---
-#>   Corners:  +47+52  -901+52  -901-588  +47-588
-#>   -geometry 80x24+37+14
+#>   Corners:  +-705+133  -2025+133  -2025-277  +-705-277
+#>   -geometry 360x640+-705+133
+
+# Diff viewing from 2 vs. viewing from 3:
+#<   Absolute upper-left X:  975
+#---
+#>   Absolute upper-left X:  -705
+#22,23c22,23
+#<   Corners:  +975+133  -345+133  -345-277  +975-277
+#<   -geometry 360x640+975+133
+#---
+#>   Corners:  +-705+133  -2025+133  -2025-277  +-705-277
+#>   -geometry 360x640+-705+133
+
+# Diff viewing from 4 vs. viewing from 3:
+#<   Absolute upper-left X:  -2385
+#---
+#>   Absolute upper-left X:  -705
+#22,23c22,23
+#<   Corners:  +-2385+133  -3705+133  -3705-277  +-2385-277
+#<   -geometry 360x640+-2385+133
+#---
+#>   Corners:  +-705+133  -2025+133  -2025-277  +-705-277
+#>   -geometry 360x640+-705+133
+
 
     windows = windowlist
 
@@ -313,17 +372,31 @@ def get_interesting_edges(desktop_borders, include_desktop=True,
     y_borders = set()
     top, right, bottom, left = desktop_borders
 
+    def out_of_x_bounds(x):
+        return not (left <= x <= right)
+
+    def out_of_y_bounds(y):
+        return not (top <= y <= bottom)
+
+    def out_of_bounds(window):
+        if out_of_x_bounds(w.left) and out_of_x_bounds(w.right):
+            return True
+        if out_of_y_bounds(w.top) and out_of_y_bounds(w.bottom):
+            return True
+        return False
+
     def maybe_add_x(x):
-        # print "X:", left, x, right
         if left <= x <= right:
             x_borders.add(x)
 
     def maybe_add_y(y):
-        # print "Y:", top, y, bottom
         if top <= y <= bottom:
             y_borders.add(y)
 
     for w in windows:
+        if out_of_bounds(w):
+            continue
+
         maybe_add_x(w.left)
         maybe_add_x(w.right)
         maybe_add_y(w.top)
