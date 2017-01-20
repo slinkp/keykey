@@ -17,7 +17,9 @@ import abc
 import collections
 import re
 import subprocess
+import logging
 
+log = logging.getLogger('keykey')
 
 LEFT = 'left'
 RIGHT = 'right'
@@ -34,6 +36,14 @@ def _as_hex(intstring):
 def _as_intstring(hexstring):
     hexstring = hexstring.split('x', 1)[-1]
     return str(int(hexstring, 16))
+
+
+def check_output(args):
+    out = subprocess.check_output(args)
+    log.debug(
+        u"\n=== Ran: ===\n%s\n=== Output: ===\n%s\n=========="
+        % (u' '.join(args), out.decode('utf8')))
+    return out
 
 
 class AbstractWindowInfoService(object):
@@ -85,7 +95,7 @@ class WMIFace(AbstractWindowInfoService):
         # 1 = current desktop;  0 = all non-sticky windows afaict.
         # but since we get no indication of which desktop they're on,
         # we just use current desktop.
-        out = subprocess.check_output(['wmiface', 'normalWindows', '1'])
+        out = check_output(['wmiface', 'normalWindows', '1'])
         window_ids = out.splitlines()
         return window_ids
 
@@ -94,7 +104,7 @@ class WMIFace(AbstractWindowInfoService):
         """
         Given a window id, return a WindowGeometry
         """
-        out = subprocess.check_output(['wmiface', 'frameGeometry', window_id])
+        out = check_output(['wmiface', 'frameGeometry', window_id])
         width, height, x, y = map(int, cls._geom_re.match(out).groups())
         geom = WindowGeometry(
             id=window_id,
@@ -111,7 +121,7 @@ class WMIFace(AbstractWindowInfoService):
 
     @staticmethod
     def get_active_window_id():
-        out = subprocess.check_output(['wmiface', 'activeWindow'])
+        out = check_output(['wmiface', 'activeWindow'])
         return out.strip()
 
 
@@ -128,7 +138,7 @@ class NewWindowInfo(AbstractWindowInfoService):
         """
         return list of integer IDs, for given desktop
         """
-        out = subprocess.check_output(['wmctrl', '-l'])
+        out = check_output(['wmctrl', '-l'])
         window_ids = []
         for line in out.splitlines():
             if not line.strip():
@@ -144,14 +154,14 @@ class NewWindowInfo(AbstractWindowInfoService):
         """
         Given a window id, return a WindowGeometry
         """
-        out = subprocess.check_output(['xwininfo', '-id', window_id])
+        out = check_output(['xwininfo', '-id', window_id])
         width = int(cls._width_re.search(out).group(1))
         height = int(cls._height_re.search(out).group(1))
         left = int(cls._left_re.search(out).group(1))
         top = int(cls._top_re.search(out).group(1))
 
         # Add offsets for window manager decorations.
-        extents_out = subprocess.check_output(
+        extents_out = check_output(
             ['xwininfo', '-id', window_id, '-wm'])
         extents_match = cls._extents_re.search(extents_out)
         if extents_match is None:
@@ -183,7 +193,7 @@ class NewWindowInfo(AbstractWindowInfoService):
         """
         Return integer ID for currently active window.
         """
-        out = subprocess.check_output(['xdotool', 'getactivewindow'])
+        out = check_output(['xdotool', 'getactivewindow'])
         return out.strip()
 
 
@@ -220,7 +230,7 @@ class AbstractDesktopService(object):
 class WMCtrl(AbstractDesktopService):
 
     def __init__(self, translate_ids=False):
-        desktop_info = subprocess.check_output(['wmctrl', '-m'])
+        desktop_info = check_output(['wmctrl', '-m'])
         self.is_compiz = 'Name: Compiz' in desktop_info
         self.translate_ids = self.is_compiz
 
@@ -232,7 +242,7 @@ class WMCtrl(AbstractDesktopService):
     @staticmethod
     def get_active_desktop_id():
         # NOTE wmctrl and xdotool count from 0, wmiface counts from 1.
-        out = subprocess.check_output(['wmctrl', '-d'])
+        out = check_output(['wmctrl', '-d'])
         desktops = [d.split(None, 9) for d in out.splitlines()]
         for d in desktops:
             if d[1] == '*':
@@ -255,15 +265,14 @@ class WMCtrl(AbstractDesktopService):
         # XXX should we be translating when listing instead?
         window_id = self.prepare_window_id(window_id)
         cmd = ['wmctrl', '-i', '-r', window_id, '-e', mvarg]
-        out = subprocess.check_output(cmd)
-        print ' '.join(cmd), "...with output:", out
+        out = check_output(cmd)
 
     @staticmethod
     def get_desktop_borders(desktop_id):
         """
         Returns (top, right, bottom, left)
         """
-        out = subprocess.check_output(['wmctrl', '-d'])
+        out = check_output(['wmctrl', '-d'])
         desktops = [d.split(None, 9) for d in out.splitlines()]
         for d in desktops:
             desktop = {
@@ -437,7 +446,7 @@ class WindowMover(object):
         candidates = sorted(set(candidates))
         candidates = [c for c in candidates if is_valid(c)]
 
-        print "Candidates are: ", candidates
+        logging.debug("Candidates are: %s", unicode(candidates))
 
         if candidates:
             if direction == RIGHT:
@@ -456,8 +465,11 @@ class WindowMover(object):
 
 if __name__ == '__main__':
     import sys
-    direction = sys.argv[1]
-    print "==== %s ============" % direction
+    command = sys.argv[1]
+    if '-d' in sys.argv or '--debug' in sys.argv:
+        logging.basicConfig(level=logging.DEBUG)
+
+    logging.info("==== %s ============" % command)
 
     desktop_svc = WMCtrl()
     win_svc = NewWindowInfo()
