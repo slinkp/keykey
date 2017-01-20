@@ -485,4 +485,15 @@ if __name__ == '__main__':
         get_desktop_borders=desktop_svc.get_desktop_borders,
     )
     win_id = win_svc.get_active_window_id()
-    mover.move_to_next_window_edge(win_id, direction)
+    if command in (UP, LEFT, RIGHT, DOWN):
+        mover.move_to_next_window_edge(win_id, command)
+    elif command in ('info', 'show'):
+        import pprint
+        pprint.pprint(
+            win_svc.get_window_dimensions(win_svc.get_active_window_id())
+        )
+    else:
+        # todo: usage
+        sys.stderr.write("Unrecognized command %r\n" % command)
+        sys.exit(1)
+
